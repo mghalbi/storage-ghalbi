@@ -8,6 +8,7 @@ import { onUpdated } from "vue";
 import { httpGet } from "@/Helper/http-helper";
 import Checkbox from "@/Components/Checkbox.vue";
 import DeleteFilesButton from "@/Components/app/DeleteFilesButton.vue";
+import DownloadFilesButton from "@/Components/app/DownloadFilesButton.vue";
 
 const loadMoreIntersect = ref(null);
 const allSelected = ref(false);
@@ -139,6 +140,7 @@ onMounted(() => {
                 </li>
             </ol>
             <div>
+                <DownloadFilesButton :all="allSelected" :ids="selectedIds" />
                 <DeleteFilesButton
                     :delete-all="allSelected"
                     :delete-ids="selectedIds"

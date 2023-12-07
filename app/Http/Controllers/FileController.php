@@ -113,6 +113,46 @@ class FileController extends Controller
         return to_route('myFiles', ['folder' => $parent->path]);
     }
 
+    public function download(DestroyFilesRequest $request) { 
+        $data = $request->validated();
+        $parent = $request->parent;
+        $all = $data['all'] ?? false;
+        $ids = $data['ids'] ?? [];
+
+        if (!$all && empty(ids) ) {
+            return ['message' => 'Please select files to download'];
+        }
+
+        if ($all) {
+            $url = $this->createZip($parent->children);
+            $filename = $parent->name .'.zip';
+        } else {
+            if (count($ids) == 1) {
+                $file = File::find(ids[0]);
+                if ($file->isFolder) {
+                    if ($file->children->count() == 0) {
+                        return ['message' => 'The folder is empty'];
+                    }
+                    $url = $this->createZip($file->children);
+                    $filename = $file->name .'.zip';
+                } else {
+                    $path = 'public/' . pathinfo($file->storage_path);
+                    Storage::copy($file->storage_path, $path);
+                    $url = asset(Storage::url($path));
+                    $filename = $file->name;  
+                }
+            } else {
+                $files = File::query()->whereIn('id', $ids)->get();
+                $url = $this->createZip($files);
+                $filename = $parent->name .'.zip';
+            }
+        }
+        return [
+            'url' => $url,
+            'file' => $filename
+        ];
+    }
+
     private function saveFile($file, $parent, $user): void 
     {
         $path = $file->store('/files/'.$user->id);
@@ -123,5 +163,36 @@ class FileController extends Controller
         $model->mime = $file->getMimeType();
         $model->size = $file->getSize();
         $parent->appendNode($model);
+    }
+
+    private function createZip($files): string
+    {
+        $zipPath = 'zip/'.Str::random() . '.zip';
+        $publicPath = "public/".$zipPath;
+
+        if (!is_dir(dirname($publicPath))) {
+            Storage::makeDirectory($publicPath);
+        }
+
+        $zipFile = Storage::path($publicPath);
+        $zip = new \ZipArchive();
+
+        if ($zip->open($zipFile,   \ZipArchive::CREATE | \ZipArchive::OVERWRITE) == true) {
+            $this->addFilesToZipFolder($zip, $files);
+        }
+
+        $zip->close();
+
+        return asset(Storage::url($zipPath));
+    }
+
+    private function addFilesToZipFolder($zip, $files, $ancestors='') {
+        foreach ($file as $files) {
+            if ( $file->isFolder ) {
+                $this->addFilesToZipFolder($zip,$file->children, $ancestors . $file->name .'/');
+            } else {
+                $zip->addFile(Storage::path($file->storage_path), $ancestors . $file->name);
+            }
+        }
     }
 }
